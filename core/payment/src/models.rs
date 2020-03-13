@@ -13,23 +13,28 @@ use diesel::sql_types::Integer;
 use serde::Serialize;
 use std::convert::TryInto;
 use uuid::Uuid;
+use ya_core_model::ethaddr::NodeId;
 use ya_model::payment as api_model;
 use ya_persistence::types::BigDecimalField;
 
 #[derive(Queryable, Debug, Identifiable, Insertable)]
 #[table_name = "pay_allocation"]
 pub struct NewAllocation {
+    pub owner_id: NodeId,
     pub id: String,
     pub total_amount: BigDecimalField,
+    pub consumed_amount: BigDecimalField,
     pub timeout: Option<NaiveDateTime>,
     pub make_deposit: bool,
 }
 
-impl From<api_model::NewAllocation> for NewAllocation {
-    fn from(allocation: api_model::NewAllocation) -> Self {
+impl NewAllocation {
+    pub fn from_rest(owner_id: NodeId, allocation: api_model::NewAllocation) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
+            owner_id,
             total_amount: allocation.total_amount.into(),
+            consumed_amount: BigDecimal::default().into(),
             timeout: allocation.timeout.map(|v| v.naive_utc()),
             make_deposit: allocation.make_deposit,
         }
@@ -357,6 +362,7 @@ pub struct InvoiceXActivity {
 #[derive(Queryable, Debug, Identifiable)]
 #[table_name = "pay_payment"]
 pub struct BarePayment {
+    pub owner_id: NodeId,
     pub id: String,
     pub payer_id: String,
     pub payee_id: String,

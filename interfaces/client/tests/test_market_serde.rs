@@ -25,6 +25,5 @@ fn test_act() {
 }
 "#;
 
-    let agreement : Agreement = serde_json::from_str(agreement_str).unwrap();
-
+    let agreement: Agreement = serde_json::from_str(agreement_str).unwrap();
 }

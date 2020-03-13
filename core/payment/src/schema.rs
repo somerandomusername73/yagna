@@ -1,7 +1,9 @@
 table! {
     pay_allocation (id) {
+        owner_id -> Text,
         id -> Text,
         total_amount -> Text,
+        consumed_amount -> Text,
         timeout -> Nullable<Timestamp>,
         make_deposit -> Bool,
     }
@@ -81,11 +83,12 @@ table! {
 
 table! {
     pay_payment (id) {
+        owner_id -> Text,
         id -> Text,
         payer_id -> Text,
         payee_id -> Text,
         amount -> Text,
-        timestamp -> Timestamp,
+        ts -> Timestamp,
         allocation_id -> Nullable<Text>,
         details -> Binary,
     }

@@ -95,7 +95,7 @@ impl<'c> PaymentDao<'c> {
         do_with_transaction(self.pool, move |conn| {
             let query = dsl::pay_payment.filter(dsl::payer_id.eq(payer_id.clone()));
             let payments = match later_than {
-                Some(timestamp) => query.filter(dsl::timestamp.gt(timestamp)).load(conn)?,
+                Some(timestamp) => query.filter(dsl::ts.gt(timestamp)).load(conn)?,
                 None => query.load(conn)?,
             };
             let debit_notes = debit_note_dsl::pay_payment_x_debit_note
@@ -125,7 +125,7 @@ impl<'c> PaymentDao<'c> {
         do_with_transaction(self.pool, move |conn| {
             let query = dsl::pay_payment.filter(dsl::payee_id.eq(payee_id.clone()));
             let payments = match later_than {
-                Some(timestamp) => query.filter(dsl::timestamp.gt(timestamp)).load(conn)?,
+                Some(timestamp) => query.filter(dsl::ts.gt(timestamp)).load(conn)?,
                 None => query.load(conn)?,
             };
             let debit_notes = debit_note_dsl::pay_payment_x_debit_note

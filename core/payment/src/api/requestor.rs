@@ -265,10 +265,14 @@ async fn get_invoice_events(
 
 // ************************** ALLOCATION **************************
 
-async fn create_allocation(db: Data<DbExecutor>, body: Json<NewAllocation>) -> HttpResponse {
+async fn create_allocation(
+    identity: Identity,
+    db: Data<DbExecutor>,
+    body: Json<NewAllocation>,
+) -> HttpResponse {
     // TODO: Handle deposits & timeouts
     // TODO: Allocations should have owners (identities)
-    let allocation: db_models::NewAllocation = body.into_inner().into();
+    let allocation = db_models::NewAllocation::from_rest(identity.identity, body.into_inner());
     let allocation_id = allocation.id.clone();
     let dao: AllocationDao = db.as_dao();
     match async move {
