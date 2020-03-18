@@ -1,0 +1,8 @@
+[package]
+name = "sandbox"
+version = "0.1.0"
+authors = ["Piotr Chromiec <tworec@golem.network>"]
+edition = "2018"
+
+[dependencies]
+futures = { version = "0.3.4", features = ["thread-pool"] }

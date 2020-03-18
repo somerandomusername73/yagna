@@ -28,6 +28,7 @@ members = [
     "service-bus/proto",
     "service-bus/router",
     "service-bus/util",
+    "test-utils/sandbox",
     "utils/scheduler",
     "utils/actix_utils",
     "utils/transfer",
