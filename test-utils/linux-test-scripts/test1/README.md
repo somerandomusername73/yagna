@@ -65,19 +65,19 @@ $ ./create_key.sh ./provider.env
 
 5. Run the provider app:
 ```
-$ ./start_provider.sh ./provider.env
+$ ./start_provider.sh
 ```
 
 ## Setting up and starting the requestor node
 
-First 4 steps are the same as for the provider node with `./provider.env` replaced by `./requestor.env`:
+The first 4 steps are the same as for the provider node with `./provider.env` replaced by `./requestor.env`:
 ```
 $ ./start_net_mk1_hub.sh
 $ ./setup_node.sh ./requestor.env
 $ ./start_damon.sh ./requestor.env &
 $ ./create_key.sh ./requestor.env
 ```
-The final step:
+The final step is:
 ```
-$ ./start_requestor.sh ./requestor.env 
+$ ./start_requestor.sh
 ```
