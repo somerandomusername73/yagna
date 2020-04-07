@@ -13,14 +13,12 @@ setup, for example to run the provider and the requestor daemons and agents
 on separate machines, or in separate docker containers.
 
 
-
 # Running the test scenario using wrapper scripts
-
 
 ## Setup
 
-Run the `setup_nodes.sh` to create data directories for the
-provider and requestor daemons and to generate the node identities:
+Run `setup_nodes.sh` to create data directories for the provider and requestor
+daemons and to generate node identities:
 ```
 $ ./setup_nodes.sh
 ```
@@ -40,11 +38,9 @@ $ ./start_apps.sh
 ```
 
 
-
 # Using the low-level scripts 
 
-
-## Setting up the provider node
+## Setting up and starting the provider node
 
 1. Make sure the network hub is running. If not, start it with
 ```
@@ -59,16 +55,29 @@ $ ./setup_node.sh ./provider.env
 
 3. Start the yagna daemon:
 ```
-$ ./start_damon.sh ./provider.env
+$ ./start_daemon.sh ./provider.env &
 ```
 
 4. Create an app key for the provider agent:
 ```
-$ ./create_key.sh provider.env
+$ ./create_key.sh ./provider.env
 ```
 
 5, Run the provider app:
 ```
-$ ./start_provider.sh provider.env
+$ ./start_provider.sh ./provider.env
 ```
 
+## Setting up and starting the requestor node
+
+First 4 steps are the same as for the provider node with `./provider.env` replaced by `./requestor.env`:
+```
+$ ./start_net_mk1_hub.sh
+$ ./setup_node.sh ./requestor.env
+$ ./start_damon.sh ./requestor.env &
+$ ./create_key.sh ./requestor.env
+```
+The final step:
+```
+$ ./start_requestor.sh ./requestor.env 
+```
