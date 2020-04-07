@@ -63,7 +63,7 @@ $ ./start_daemon.sh ./provider.env &
 $ ./create_key.sh ./provider.env
 ```
 
-5, Run the provider app:
+5. Run the provider app:
 ```
 $ ./start_provider.sh ./provider.env
 ```
