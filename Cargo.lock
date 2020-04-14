@@ -5542,6 +5542,7 @@ dependencies = [
  "url 2.1.1",
  "ya-client",
  "ya-core-model",
+ "ya-identity",
  "ya-model",
  "ya-persistence",
  "ya-service-api",

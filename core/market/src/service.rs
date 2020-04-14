@@ -8,14 +8,42 @@ use ya_client::{
     market::MarketProviderApi,
     web::{WebClient, WebInterface},
 };
-use ya_core_model::{appkey, identity, market};
+use ya_core_model::{appkey, market};
+use ya_identity::cli::AppKeyCommand;
+use ya_service_api::CliCtx;
 use ya_service_api_interfaces::Service;
 use ya_service_bus::{typed as bus, RpcEndpoint, RpcMessage};
 
 use crate::Error;
 
-const KEY_EXPORT_RETRY_COUNT: u8 = 3;
-const KEY_EXPORT_RETRY_DELAY: Duration = Duration::from_secs(5);
+const CREATE_TEST_APPKEY_ENV_VAR: &str = "YAGNA_CREATE_TEST_APPKEY";
+const KEY_EXPORT_RETRY_COUNT_ENV_VAR: &str = "YAGNA_KEY_EXPORT_RETRY_COUNT";
+const KEY_EXPORT_RETRY_DELAY_ENV_VAR: &str = "YAGNA_KEY_EXPORT_RETRY_DELAY";
+const TEST_APPKEY_ENV_VAR: &str = "YAGNA_TEST_APPKEY_NAME";
+
+const DEFAULT_KEY_EXPORT_RETRY_COUNT: u8 = 0;
+const DEFAULT_KEY_EXPORT_RETRY_DELAY: Duration = Duration::from_secs(5);
+const DEFAULT_TEST_APPKEY_NAME: &str = "test_key";
+
+fn get_key_export_retry_count() -> u8 {
+    return std::env::var(KEY_EXPORT_RETRY_COUNT_ENV_VAR)
+        .and_then(|var| var.parse().map_err(|_| std::env::VarError::NotPresent))
+        .unwrap_or(DEFAULT_KEY_EXPORT_RETRY_COUNT);
+}
+
+fn get_key_export_retry_delay() -> Duration {
+    return std::env::var(KEY_EXPORT_RETRY_DELAY_ENV_VAR)
+        .and_then(|var| {
+            var.parse()
+                .map(|parsed: u8| Duration::from_secs(parsed.into()))
+                .map_err(|_| std::env::VarError::NotPresent)
+        })
+        .unwrap_or(DEFAULT_KEY_EXPORT_RETRY_DELAY);
+}
+
+fn get_test_appkey_name() -> String {
+    std::env::var(TEST_APPKEY_ENV_VAR).unwrap_or(DEFAULT_TEST_APPKEY_NAME.to_string())
+}
 
 pub type RpcMessageResult<T> = Result<<T as RpcMessage>::Item, <T as RpcMessage>::Error>;
 
@@ -67,23 +95,15 @@ async fn create_test_key() -> anyhow::Result<()> {
 
     if ids.len() == 0 {
         log::info!("Creating test app-key");
-        let default_id = bus::service(identity::BUS_ID)
-            .send(identity::Get::ByDefault)
-            .await
-            .map_err(anyhow::Error::msg)??
-            .ok_or(anyhow!(
-                "Creating test app-key failed, no default identity."
-            ))?
-            .node_id;
 
-        bus::service(appkey::BUS_ID)
-            .send(appkey::Create {
-                name: "test-key".to_string(),
-                role: "manager".to_string(),
-                identity: default_id,
-            })
-            .await
-            .ok();
+        AppKeyCommand::Create {
+            name: get_test_appkey_name(),
+            role: appkey::DEFAULT_ROLE.to_string(),
+            id: None,
+        }
+        .run_command(&CliCtx::default())
+        .await?;
+
         log::info!("Test app-key created");
     }
 
@@ -91,7 +111,9 @@ async fn create_test_key() -> anyhow::Result<()> {
 }
 
 async fn tmp_send_keys() -> anyhow::Result<()> {
-    create_test_key().await?;
+    if std::env::var(CREATE_TEST_APPKEY_ENV_VAR).is_ok() {
+        create_test_key().await?;
+    }
 
     let mut url =
         MarketProviderApi::rebase_service_url(Rc::new(Url::parse("http://127.0.0.1:5001")?))?
@@ -105,7 +127,10 @@ async fn tmp_send_keys() -> anyhow::Result<()> {
         .freeze()
         .map_err(|e| anyhow!("Failed to build frozen request. Error: {}", e.to_string()))?;
 
-    for count in 0..KEY_EXPORT_RETRY_COUNT {
+    let request_count = get_key_export_retry_count() + 1;
+    let retry_delay = get_key_export_retry_delay();
+
+    for count in 0..request_count {
         let ids = get_app_keys().await?;
 
         match request.send_json(&ids).await {
@@ -122,15 +147,15 @@ async fn tmp_send_keys() -> anyhow::Result<()> {
                 break;
             }
             Err(e) => {
-                if count == KEY_EXPORT_RETRY_COUNT - 1 {
+                if count == request_count - 1 {
                     log::error!("Key export failed, no retries left. Error: {}", e);
                 } else {
                     log::debug!(
                         "Key export failed, retrying in: {} seconds. Retries left: {}",
-                        KEY_EXPORT_RETRY_DELAY.as_secs(),
-                        KEY_EXPORT_RETRY_COUNT - (count + 1)
+                        retry_delay.as_secs(),
+                        request_count - (count + 1)
                     );
-                    delay_for(KEY_EXPORT_RETRY_DELAY).await;
+                    delay_for(retry_delay).await;
                 }
             }
         }
