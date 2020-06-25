@@ -61,6 +61,11 @@ where
     router().lock().unwrap().bind(addr, WithCaller(f))
 }
 
+#[inline]
+pub async fn commit() {
+    router().lock().unwrap().commit().await
+}
+
 #[derive(Clone)]
 pub struct Endpoint {
     router: Arc<Mutex<Router>>,

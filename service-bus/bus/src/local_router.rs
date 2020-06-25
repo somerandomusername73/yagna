@@ -404,6 +404,18 @@ impl Router {
         Handle { _inner: () }
     }
 
+    /// Allows to wait for update service queue to be handled by RemoteRouter
+    // it was added in hope of resolving decentralized-market multithreaded test issues
+    // but was not successfull
+    pub async fn commit(&mut self) {
+        if let Err(e) = RemoteRouter::from_registry()
+            .send(UpdateService::Commit)
+            .await
+        {
+            log::error!("Service commit failed: {}", e);
+        }
+    }
+
     pub fn forward<T: RpcMessage + Unpin>(
         &mut self,
         addr: &str,

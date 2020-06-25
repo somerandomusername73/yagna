@@ -125,6 +125,7 @@ impl SystemService for RemoteRouter {}
 pub enum UpdateService {
     Add(String),
     Remove(String),
+    Commit,
 }
 
 impl Message for UpdateService {
@@ -156,6 +157,7 @@ impl Handler<UpdateService> for RemoteRouter {
                 log::trace!("Unbinding local service '{}'", service_id);
                 self.local_bindings.remove(&service_id);
             }
+            UpdateService::Commit => (),
         }
         MessageResult(())
     }
