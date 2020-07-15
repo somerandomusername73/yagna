@@ -16,7 +16,8 @@ pub const DEFAULT_QUERY_TIMEOUT: f32 = 12.0;
 pub fn path_config() -> PathConfig {
     PathConfig::default().error_handler(|err, _req| {
         InternalError::new(
-            serde_json::to_string(&ErrorMessage::new(err.to_string())).unwrap(),
+            serde_json::to_string(&ErrorMessage::new(format!("zima: {}", err))).unwrap(),
+            z,
             StatusCode::BAD_REQUEST,
         )
         .into()

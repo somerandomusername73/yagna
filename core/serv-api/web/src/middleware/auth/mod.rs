@@ -102,6 +102,7 @@ where
                                 req.path(),
                                 key
                             );
+                            // TODO: should be json - compatible with ya-client
                             Err(ErrorUnauthorized("Invalid application key"))
                         }
                     }
