@@ -15,6 +15,7 @@ table! {
         identity_id -> Text,
         event_date -> Timestamp,
         event_type_id -> Integer,
+        extra_data -> Nullable<Text>,
     }
 }
 

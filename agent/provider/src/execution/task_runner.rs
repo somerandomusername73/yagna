@@ -79,6 +79,7 @@ pub struct ActivityDestroyed {
 struct CreateActivity {
     pub activity_id: String,
     pub agreement_id: String,
+    pub requestor_pub_key: Option<String>,
 }
 
 /// Called when we got destroyActivity event.
@@ -228,9 +229,14 @@ impl TaskRunner {
                     ProviderEvent::CreateActivity {
                         activity_id,
                         agreement_id,
+                        requestor_pub_key,
                     } => {
                         myself
-                            .send(CreateActivity::new(activity_id, agreement_id))
+                            .send(CreateActivity::new(
+                                activity_id,
+                                agreement_id,
+                                requestor_pub_key.as_ref().map(AsRef::as_ref),
+                            ))
                             .await?
                     }
                     ProviderEvent::DestroyActivity {
@@ -647,10 +653,15 @@ impl Handler<AgreementBroken> for TaskRunner {
 // =========================================== //
 
 impl CreateActivity {
-    pub fn new(activity_id: &str, agreement_id: &str) -> CreateActivity {
+    pub fn new(
+        activity_id: &str,
+        agreement_id: &str,
+        requestor_pub_key: Option<&str>,
+    ) -> CreateActivity {
         CreateActivity {
             activity_id: activity_id.to_string(),
             agreement_id: agreement_id.to_string(),
+            requestor_pub_key: requestor_pub_key.map(ToString::to_string),
         }
     }
 }

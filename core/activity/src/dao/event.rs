@@ -19,6 +19,7 @@ pub struct Event {
     pub event_type: ActivityEventType,
     pub activity_natural_id: String,
     pub agreement_natural_id: String,
+    pub extra_data: Option<String>,
 }
 
 impl From<Event> for ProviderEvent {
@@ -27,6 +28,8 @@ impl From<Event> for ProviderEvent {
             ActivityEventType::CreateActivity => ProviderEvent::CreateActivity {
                 activity_id: value.activity_natural_id,
                 agreement_id: value.agreement_natural_id,
+                // TODO: Add parse
+                requestor_pub_key: None,
             },
             ActivityEventType::DestroyActivity => ProviderEvent::DestroyActivity {
                 activity_id: value.activity_natural_id,
@@ -116,6 +119,7 @@ impl<'c> EventDao<'c> {
                     dsl_event::event_type_id,
                     dsl::natural_id,
                     dsl::agreement_id,
+                    dsl_event::extra_data,
                 ))
                 .order(dsl_event::event_date.asc())
                 .limit(limit as i64)

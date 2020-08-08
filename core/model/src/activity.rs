@@ -103,21 +103,6 @@ pub mod sgx {
         type Item = Vec<u8>;
         type Error = RpcMessageError;
     }
-
-    #[derive(Clone, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub enum Request {
-        Exec(super::Exec),
-        GetExecBatchResults(super::GetExecBatchResults),
-    }
-
-    #[derive(Clone, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub enum Response {
-        Exec(Result<String, RpcMessageError>),
-        GetExecBatchResults(Result<Vec<super::ExeScriptCommandResult>, RpcMessageError>),
-        Error(RpcMessageError),
-    }
 }
 
 /// Execute a script within the activity. Returns `batch_id`.

@@ -14,7 +14,7 @@ path = "src/bin.rs"
 
 [features]
 default=['compat-deployment', "sgx"]
-sgx=['reqwest']
+sgx=['reqwest', 'ya-client-model/sgx']
 compat-deployment=[]
 
 [target.'cfg(target_family = "unix")'.dependencies]

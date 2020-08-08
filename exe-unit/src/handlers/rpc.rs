@@ -162,29 +162,55 @@ impl<R: Runtime> Handler<RpcEnvelope<sgx::CallEncryptedService>> for ExeUnit<R> 
         msg: RpcEnvelope<CallEncryptedService>,
         ctx: &mut Context<Self>,
     ) -> Self::Result {
+        use ya_client_model::activity::encrypted::{
+            Request, RequestCommand, Response, RpcMessageError as ApiError,
+        };
+
         let me = ctx.address();
+        let ctx = ya_client_model::activity::encrypted::EncryptionCtx::new(
+            unimplemented!(),
+            unimplemented!(),
+        );
 
         async move {
             let bytes = msg.bytes.as_slice();
             // TODO: Decrypt message
-            let body: sgx::Request = serde_json::from_slice(bytes)
+            let body: Request = ctx
+                .decrypt(msg.bytes.as_slice())
                 .map_err(|e| RpcMessageError::BadRequest(e.to_string()))?;
-            Ok(match body {
-                sgx::Request::Exec(exec) => {
-                    sgx::Response::Exec(me.send(RpcEnvelope::local(exec)).await.map_err(|_| {
+
+            match body.command {
+                RequestCommand::Exec { exe_script, .. } => {
+                    let msg = RpcEnvelope::with_caller(
+                        msg.caller(),
+                        Exec {
+                            activity_id: body.activity_id,
+                            batch_id: body.batch_id,
+                            exe_script,
+                            timeout: body.timeout,
+                        },
+                    );
+                    let response = me.send(msg).await.map_err(|_| {
                         RpcMessageError::Service("fatal: exe-unit disconnected".to_string())
-                    })?)
+                    })?;
+                    response
                 }
-                sgx::Request::GetExecBatchResults(get_exec_batch_results) => {
-                    sgx::Response::GetExecBatchResults(
-                        me.send(RpcEnvelope::local(get_exec_batch_results))
-                            .await
-                            .map_err(|_e| {
-                                RpcMessageError::Service("fatal: exe-unit disconnected".to_string())
-                            })?,
-                    )
+                RequestCommand::GetExecBatchResults { command_index, .. } => {
+                    let msg = RpcEnvelope::with_caller(
+                        msg.caller(),
+                        GetExecBatchResults {
+                            activity_id: body.activity_id,
+                            batch_id: body.batch_id,
+                            timeout: body.timeout,
+                            command_index,
+                        },
+                    );
+                    let response = me.send(msg).await.map_err(|_e| {
+                        RpcMessageError::Service("fatal: exe-unit disconnected".to_string())
+                    })?;
+                    response
                 }
-            })
+            }
         }
         .then(|v| {
             let response = match v {
