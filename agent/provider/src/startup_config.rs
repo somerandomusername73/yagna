@@ -1,13 +1,13 @@
+use crate::execution::{ExeUnitsRegistry, TaskRunnerConfig};
+use crate::hardware::Resources;
+use byte_unit::Byte as Bytes;
+use futures::channel::oneshot;
 use notify::*;
 use std::error::Error;
 use std::path::{Path, PathBuf};
-use structopt::{clap, StructOpt};
-
-use crate::execution::{ExeUnitsRegistry, TaskRunnerConfig};
-use crate::hardware::Resources;
-use futures::channel::oneshot;
 use std::sync::mpsc;
 use std::time::Duration;
+use structopt::{clap, StructOpt};
 use ya_client::cli::ApiOpts;
 use ya_utils_path::data_dir::DataDir;
 
@@ -45,21 +45,21 @@ pub struct ProviderConfig {
         set = clap::ArgSettings::Global,
         env = "YA_RT_CORES")
     ]
-    pub rt_cores: Option<usize>,
-    /// Max amount of available RAM (GiB)
+    pub rt_cores: Option<i32>,
+    /// Max amount of available RAM
     #[structopt(
         long,
         set = clap::ArgSettings::Global,
         env = "YA_RT_MEM")
     ]
-    pub rt_mem: Option<f64>,
-    /// Max amount of available storage (GiB)
+    pub rt_mem: Option<Bytes>,
+    /// Max amount of available storage
     #[structopt(
         long,
         set = clap::ArgSettings::Global,
         env = "YA_RT_STORAGE")
     ]
-    pub rt_storage: Option<f64>,
+    pub rt_storage: Option<Bytes>,
 }
 
 impl ProviderConfig {

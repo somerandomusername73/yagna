@@ -331,7 +331,7 @@ will print an output similar to:
 {
   "default": {
     "cpu_threads": 3,
-    "mem_gib": 10.9375,
+    "mem_gib": 10.9375, TODO
     "storage_gib": 73.57168884277344
   }
 }
@@ -362,7 +362,7 @@ ya-provider profile create \
 
 E.g.:
 ```bash
-ya-provider profile create half --cpu-threads 2  --mem-gib 8. --storage-gib 256.
+ya-provider profile create half --cpu-threads 2  --mem-gib 8. --storage-gib 256. // TODO
 ```
 
 ### Updating a profile
@@ -373,7 +373,7 @@ Usage is similar to profile creation.
 
 E.g.:
 ```bash
-ya-provider profile update half --cpu-threads 3  --mem-gib 5. --storage-gib 128.
+ya-provider profile update half --cpu-threads 3  --mem-gib 5. --storage-gib 128. // TODO
 ```
 
 ### Removing a profile

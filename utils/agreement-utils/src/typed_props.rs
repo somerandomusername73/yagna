@@ -1,3 +1,5 @@
+use byte_unit::{Byte as Bytes, ByteUnit};
+
 pub trait OfferBuilder {
     fn build(&self) -> serde_json::Value;
 }
@@ -78,8 +80,8 @@ impl ServiceInfo {
 
 #[derive(Default, Clone)]
 pub struct InfNodeInfo {
-    mem_gib: Option<f64>,
-    storage_gib: Option<f64>,
+    mem: Option<Bytes>,
+    storage: Option<Bytes>,
     cpu_info: Option<CpuInfo>,
 }
 
@@ -89,16 +91,16 @@ impl InfNodeInfo {
         Self::default()
     }
 
-    pub fn with_mem(self, mem_gib: f64) -> Self {
+    pub fn with_mem(self, mem: Bytes) -> Self {
         Self {
-            mem_gib: Some(mem_gib),
+            mem: Some(mem),
             ..self
         }
     }
 
-    pub fn with_storage(self, storage_gib: f64) -> Self {
+    pub fn with_storage(self, storage: Bytes) -> Self {
         Self {
-            storage_gib: Some(storage_gib),
+            storage: Some(storage),
             ..self
         }
     }
@@ -112,11 +114,19 @@ impl InfNodeInfo {
 
     fn write_json(self, map: &mut serde_json::Map<String, serde_json::Value>) {
         let mut inf_map = serde_json::Map::new();
-        if let Some(mem) = self.mem_gib {
-            let _ = inf_map.insert("mem".to_string(), serde_json::json!({ "gib": mem }));
+        if let Some(mem) = self.mem {
+            let _ = inf_map.insert(
+                "mem".to_string(),
+                // TODO: we should pass bytes as an integer
+                serde_json::json!({ "gib": mem.get_adjusted_unit(ByteUnit::GiB).get_value()}),
+            );
         }
-        if let Some(storage) = self.storage_gib {
-            let _ = inf_map.insert("storage".to_string(), serde_json::json!({ "gib": storage }));
+        if let Some(storage) = self.storage {
+            let _ = inf_map.insert(
+                "storage".to_string(),
+                // TODO: we should pass bytes as an integer
+                serde_json::json!({ "gib": storage.get_adjusted_unit(ByteUnit::GiB).get_value() }),
+            );
         }
         if let Some(cpu) = self.cpu_info {
             cpu.write_json(&mut inf_map);

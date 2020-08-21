@@ -1,5 +1,6 @@
 use crate::events::Event;
 use crate::startup_config::{FileMonitor, ProviderConfig};
+use byte_unit::{Byte as Bytes, ByteUnit};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -14,11 +15,13 @@ use ya_utils_path::SwapSave;
 
 pub const DEFAULT_PROFILE_NAME: &str = "default";
 pub const CPU_THREADS_RESERVED: i32 = 1;
-pub static MIN_CAPS: Resources = Resources {
-    cpu_threads: 1,
-    mem_gib: 0.1,
-    storage_gib: 0.1,
-};
+lazy_static::lazy_static! {
+    pub static ref MIN_CAPS: Resources = Resources {
+        cpu_threads: 1,
+        mem: Bytes::from_unit(0.1, ByteUnit::GiB).unwrap(),
+        storage: Bytes::from_unit(0.1, ByteUnit::GiB).unwrap(),
+    };
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProfileError {
@@ -58,10 +61,10 @@ pub struct Resources {
     pub cpu_threads: i32,
     /// Total amount of RAM
     #[structopt(long)]
-    pub mem_gib: f64,
+    pub mem: Bytes,
     /// Free partition space
     #[structopt(long)]
-    pub storage_gib: f64,
+    pub storage: Bytes,
 }
 
 impl Resources {
@@ -77,10 +80,10 @@ impl Resources {
                 user_caps.cpu_threads = cores as i32;
             }
             if let Some(mem) = config.rt_mem {
-                user_caps.mem_gib = mem;
+                user_caps.mem = mem;
             }
             if let Some(storage) = config.rt_storage {
-                user_caps.storage_gib = storage;
+                user_caps.storage = storage;
             }
 
             return Ok(user_caps.cap(&max_caps));
@@ -91,16 +94,16 @@ impl Resources {
     fn new_empty() -> Self {
         Resources {
             cpu_threads: 0,
-            mem_gib: 0.,
-            storage_gib: 0.,
+            mem: 0u32.into(),
+            storage: 0u32.into(),
         }
     }
 
     fn max_caps<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         Ok(Resources {
             cpu_threads: num_cpus::get() as i32,
-            mem_gib: 1000. * sys_info::mem_info()?.total as f64 / (1024. * 1024. * 1024.),
-            storage_gib: partition_space(path)? as f64 / (1024. * 1024. * 1024.),
+            mem: (1000 * sys_info::mem_info()?.total).into(),
+            storage: partition_space(path)?,
         })
     }
 
@@ -108,23 +111,21 @@ impl Resources {
         let res = Self::max_caps(path)?;
         Ok(Resources {
             cpu_threads: 1.max(res.cpu_threads - CPU_THREADS_RESERVED),
-            mem_gib: 0.7 * res.mem_gib,
-            storage_gib: 0.8 * res.storage_gib,
+            mem: Bytes::from_bytes((res.mem.get_bytes() / 10) * 7),
+            storage: Bytes::from_bytes((res.storage.get_bytes() / 10) * 8),
         })
     }
 
     pub fn depleted(&self) -> bool {
-        self.cpu_threads <= 0 || self.mem_gib <= 0. || self.storage_gib <= 0.
+        self.cpu_threads <= 0 || self.mem.get_bytes() <= 0 || self.storage.get_bytes() <= 0
     }
 
     pub fn cap(mut self, res: &Resources) -> Self {
         self.cpu_threads = MIN_CAPS
             .cpu_threads
             .max(self.cpu_threads.min(res.cpu_threads));
-        self.mem_gib = MIN_CAPS.mem_gib.max(self.mem_gib.min(res.mem_gib));
-        self.storage_gib = MIN_CAPS
-            .storage_gib
-            .max(self.storage_gib.min(res.storage_gib));
+        self.mem = MIN_CAPS.mem.max(self.mem.min(res.mem));
+        self.storage = MIN_CAPS.storage.max(self.storage.min(res.storage));
         self
     }
 }
@@ -132,8 +133,8 @@ impl Resources {
 impl PartialEq for Resources {
     fn eq(&self, other: &Self) -> bool {
         self.cpu_threads == other.cpu_threads
-            && self.mem_gib == other.mem_gib
-            && self.storage_gib == other.storage_gib
+            && self.mem == other.mem
+            && self.storage == other.storage
     }
 }
 
@@ -142,8 +143,8 @@ impl PartialOrd for Resources {
         if self == other {
             Some(Ordering::Equal)
         } else if self.cpu_threads >= other.cpu_threads
-            && self.mem_gib >= other.mem_gib
-            && self.storage_gib >= other.storage_gib
+            && self.mem >= other.mem
+            && self.storage >= other.storage
         {
             Some(Ordering::Greater)
         } else {
@@ -160,8 +161,8 @@ impl Add for Resources {
     fn add(self, rhs: Self) -> Self::Output {
         Resources {
             cpu_threads: self.cpu_threads + rhs.cpu_threads,
-            mem_gib: self.mem_gib + rhs.mem_gib,
-            storage_gib: self.storage_gib + rhs.storage_gib,
+            mem: Bytes::from_bytes(self.mem.get_bytes() + rhs.mem.get_bytes()),
+            storage: Bytes::from_bytes(self.storage.get_bytes() + rhs.storage.get_bytes()),
         }
     }
 }
@@ -172,8 +173,8 @@ impl Sub for Resources {
     fn sub(self, rhs: Self) -> Self::Output {
         Resources {
             cpu_threads: self.cpu_threads - rhs.cpu_threads,
-            mem_gib: self.mem_gib - rhs.mem_gib,
-            storage_gib: self.storage_gib - rhs.storage_gib,
+            mem: Bytes::from_bytes(self.mem.get_bytes() - rhs.mem.get_bytes()),
+            storage: Bytes::from_bytes(self.storage.get_bytes() - rhs.storage.get_bytes()),
         }
     }
 }
@@ -187,8 +188,8 @@ impl From<Resources> for InfNodeInfo {
         };
 
         InfNodeInfo::default()
-            .with_mem(res.mem_gib)
-            .with_storage(res.storage_gib)
+            .with_mem(res.mem)
+            .with_storage(res.storage)
             .with_cpu(cpu_info)
     }
 }
@@ -197,6 +198,45 @@ impl From<Resources> for InfNodeInfo {
 pub struct Profiles {
     active: String,
     profiles: HashMap<String, Resources>,
+}
+
+/// for converting from older format
+mod old {
+    use byte_unit::{Byte as Bytes, ByteUnit};
+    use serde::Deserialize;
+    use std::collections::HashMap;
+
+    #[derive(Deserialize)]
+    struct Resources {
+        cpu_threads: i32,
+        mem_gib: f64,
+        storage_gib: f64,
+    }
+
+    impl From<Resources> for super::Resources {
+        fn from(old: Resources) -> Self {
+            Self {
+                cpu_threads: old.cpu_threads,
+                mem: Bytes::from_unit(old.mem_gib, ByteUnit::GiB).unwrap(),
+                storage: Bytes::from_unit(old.storage_gib, ByteUnit::GiB).unwrap(),
+            }
+        }
+    }
+
+    #[derive(Deserialize)]
+    pub(super) struct Profiles {
+        active: String,
+        profiles: HashMap<String, Resources>,
+    }
+
+    impl From<Profiles> for super::Profiles {
+        fn from(mut old: Profiles) -> Self {
+            Self {
+                active: old.active,
+                profiles: old.profiles.drain().map(|(k, v)| (k, v.into())).collect(),
+            }
+        }
+    }
 }
 
 impl Profiles {
@@ -223,12 +263,21 @@ impl Profiles {
 
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let contents = std::fs::read_to_string(&path)?;
-        let new: Profiles = serde_json::from_str(contents.as_str())?;
+
+        let new: Profiles;
+        if contents.contains("mem_gib") {
+            let old: old::Profiles = serde_json::from_str(contents.as_str())?;
+            new = old.into();
+            new.save(path)?;
+        } else {
+            new = serde_json::from_str(contents.as_str())?;
+        }
+
         if new.profiles.contains_key(&new.active).not() {
             return Err(ProfileError::Unknown(new.active).into());
         }
 
-        Ok(serde_json::from_str(contents.as_str())?)
+        Ok(new)
     }
 
     #[inline]
@@ -427,7 +476,7 @@ impl Manager {
 }
 
 /// Return free space on a partition with a given path
-fn partition_space<P: AsRef<Path>>(path: P) -> Result<u64, Error> {
+fn partition_space<P: AsRef<Path>>(path: P) -> Result<Bytes, Error> {
     let path = path.as_ref();
     #[cfg(windows)]
     {
@@ -452,14 +501,16 @@ fn partition_space<P: AsRef<Path>>(path: P) -> Result<u64, Error> {
             log::error!("Unable to read free partition space for path '{:?}'", path);
         };
 
-        Ok(free_bytes_available)
+        Ok(Bytes::from_bytes(free_bytes_available))
     }
     #[cfg(not(windows))]
     {
         use nix::sys::statvfs::statvfs;
         let stat =
             statvfs(path.as_os_str()).map_err(|e| sys_info::Error::General(e.to_string()))?;
-        Ok(stat.blocks_available() as u64 * stat.fragment_size())
+        Ok(Bytes::from_bytes(
+            (stat.blocks_available() as u128) * (stat.fragment_size() as u128),
+        ))
     }
 }
 
@@ -471,8 +522,8 @@ mod tests {
         let active = DEFAULT_PROFILE_NAME.to_string();
         let resources = Resources {
             cpu_threads: 4,
-            mem_gib: 8.,
-            storage_gib: 100.,
+            mem: 8,
+            storage: 100,
         };
         let profiles = vec![(active.clone(), resources)].into_iter().collect();
         Profiles { active, profiles }
@@ -482,62 +533,62 @@ mod tests {
     fn limit_by_caps() {
         let res = Resources {
             cpu_threads: 16,
-            mem_gib: 24.,
-            storage_gib: 200.,
+            mem: 24,
+            storage: 200,
         }
         .cap(&Resources {
             cpu_threads: 4,
-            mem_gib: 8.,
-            storage_gib: 100.,
+            mem: 8,
+            storage: 100,
         });
 
         assert_eq!(res.cpu_threads, 4);
-        assert_eq!(res.mem_gib, 8.);
-        assert_eq!(res.storage_gib, 100.);
+        assert_eq!(res.mem, 8);
+        assert_eq!(res.storage, 100);
     }
 
     #[test]
     fn limit_by_hardware() {
         let res = Resources {
             cpu_threads: 2,
-            mem_gib: 2.,
-            storage_gib: 20.,
+            mem: 2,
+            storage: 20,
         }
         .cap(&Resources {
             cpu_threads: 4,
-            mem_gib: 8.,
-            storage_gib: 100.,
+            mem: 8,
+            storage: 100,
         });
 
         assert_eq!(res.cpu_threads, 2);
-        assert_eq!(res.mem_gib, 2.);
-        assert_eq!(res.storage_gib, 20.);
+        assert_eq!(res.mem, 2);
+        assert_eq!(res.storage, 20);
     }
 
     #[test]
     fn limit_min() {
         let res = Resources {
             cpu_threads: 2,
-            mem_gib: 2.,
-            storage_gib: 20.,
+            mem: 2,
+            storage: 20,
         }
         .cap(&Resources {
             cpu_threads: 0,
-            mem_gib: 0.,
-            storage_gib: 0.,
+            mem: 0,
+            storage: 0,
         });
 
         assert_eq!(res.cpu_threads, 1);
-        assert_eq!(res.mem_gib, 0.1);
-        assert_eq!(res.storage_gib, 0.1);
+        assert_eq!(res.mem, 0);
+        assert_eq!(res.storage, 0);
     }
 
     #[test]
     fn allocation() {
         let res = Resources {
             cpu_threads: 8,
-            mem_gib: 24.,
-            storage_gib: 200.,
+            mem: 24,
+            storage: 200,
         };
         let state = ManagerState {
             res_available: res.clone(),
@@ -555,8 +606,8 @@ mod tests {
         };
         let alloc = Resources {
             cpu_threads: 1,
-            mem_gib: 1.51,
-            storage_gib: 12.37,
+            mem: 1,      //1.51,
+            storage: 12, // 12.37,
         };
 
         man.allocate("1".into(), alloc.clone()).unwrap();
@@ -568,16 +619,16 @@ mod tests {
 
         let remaining = man.state.lock().unwrap().res_remaining;
         assert_eq!(remaining.cpu_threads, res.cpu_threads);
-        assert_eq!(remaining.mem_gib, res.mem_gib);
-        assert_eq!(remaining.storage_gib, res.storage_gib);
+        assert_eq!(remaining.mem, res.mem);
+        assert_eq!(remaining.storage, res.storage);
     }
 
     #[test]
     fn allocation_err() {
         let res = Resources {
             cpu_threads: 8,
-            mem_gib: 24.,
-            storage_gib: 200.,
+            mem: 24,
+            storage: 200,
         };
         let state = ManagerState {
             res_available: res.clone(),
@@ -595,8 +646,8 @@ mod tests {
         };
         let alloc = Resources {
             cpu_threads: 1,
-            mem_gib: 1.51,
-            storage_gib: 12.37,
+            mem: 1,      //1.51,
+            storage: 12, //12.37,
         };
 
         man.allocate("1".into(), alloc.clone()).unwrap();
@@ -607,8 +658,8 @@ mod tests {
                 "3".into(),
                 Resources {
                     cpu_threads: 1000,
-                    mem_gib: 10000.,
-                    storage_gib: 10000.,
+                    mem: 10000,
+                    storage: 10000,
                 }
             )
             .is_err());

@@ -1,6 +1,7 @@
 use crate::agreement::Agreement;
 use crate::message::*;
 use actix::prelude::*;
+use byte_unit::{Byte as Bytes, ByteUnit};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use ya_runtime_api::deploy::StartMode;
@@ -42,28 +43,36 @@ impl From<StartMode> for RuntimeMode {
 pub struct RuntimeArgs {
     workdir: PathBuf,
     task_package: Option<PathBuf>,
-    cpu_cores: Option<f64>,
-    mem_gib: Option<f64>,
-    storage_gib: Option<f64>,
+    cpu_cores: Option<i32>,
+    mem: Option<Bytes>,
+    storage: Option<Bytes>,
 }
 
 impl RuntimeArgs {
     pub fn new(work_dir: &PathBuf, agreement: &Agreement, with_inf: bool) -> Self {
         let mut cpu_cores = None;
-        let mut mem_gib = None;
-        let mut storage_gib = None;
+        let mut mem = None;
+        let mut storage = None;
         if with_inf {
-            cpu_cores = agreement.infrastructure.get("cpu.cores").cloned();
-            mem_gib = agreement.infrastructure.get("mem.gib").cloned();
-            storage_gib = agreement.infrastructure.get("storage.gib").cloned();
+            // TODO: Can I have 1.23 cores, please?
+            cpu_cores = agreement.infrastructure.get("cpu.cores").map(|v| *v as i32);
+            // TODO: we should pass bytes as an integer
+            mem = agreement
+                .infrastructure
+                .get("mem.gib")
+                .map(|v| Bytes::from_unit(*v, ByteUnit::GiB).unwrap());
+            storage = agreement
+                .infrastructure
+                .get("storage.gib")
+                .map(|v| Bytes::from_unit(*v, ByteUnit::GiB).unwrap());
         }
 
         RuntimeArgs {
             workdir: work_dir.clone(),
             task_package: None,
             cpu_cores,
-            mem_gib,
-            storage_gib,
+            mem: mem,
+            storage: storage,
         }
     }
 
@@ -77,19 +86,19 @@ impl RuntimeArgs {
         if let Some(val) = self.cpu_cores {
             args.extend(vec![
                 OsString::from("--cpu-cores"),
-                OsString::from((val as u64).to_string()),
-            ]);
-        }
-        if let Some(val) = self.mem_gib {
-            args.extend(vec![
-                OsString::from("--mem-gib"),
                 OsString::from(val.to_string()),
             ]);
         }
-        if let Some(val) = self.storage_gib {
+        if let Some(val) = self.mem {
             args.extend(vec![
-                OsString::from("--storage-gib"),
-                OsString::from(val.to_string()),
+                OsString::from("--mem"),
+                OsString::from(val.get_bytes().to_string()),
+            ]);
+        }
+        if let Some(val) = self.storage {
+            args.extend(vec![
+                OsString::from("--storage"),
+                OsString::from(val.get_bytes().to_string()),
             ]);
         }
         args
