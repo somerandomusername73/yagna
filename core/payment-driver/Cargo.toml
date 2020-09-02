@@ -13,8 +13,14 @@ integration-tests = []
 [dependencies]
 actix = "0.9"
 actix-rt = "1.0"
+
 anyhow = "1.0"
 awc = "1.0.1"
+actix-connect="1.0.1"
+actix-http="1.0.1"
+trust-dns-resolver="0.18.0-alpha.2"
+
+
 bigdecimal = "0.1.0"
 bitflags = "1.2"
 chrono = { version = "0.4", features = ["serde"] }
