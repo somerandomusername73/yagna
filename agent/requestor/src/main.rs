@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 use structopt::{clap, StructOpt};
 
 use std::convert::TryFrom;
+use ya_client::model::payment::Account;
 use ya_client::{cli::ApiOpts, cli::RequestorApi, Error};
 
 mod activity;
@@ -54,6 +55,9 @@ struct AppSettings {
     /// Exit after processing one agreement.
     #[structopt(long)]
     one_agreement: bool,
+    /// Payment platform
+    #[structopt(long, env = "PAYMENT_PLATFORM")]
+    pub payment_platform: Option<String>,
 }
 
 /// if needed unsubscribes from the market and releases allocation
@@ -172,12 +176,26 @@ async fn main() -> anyhow::Result<()> {
 
     let activities = Arc::new(Mutex::new(HashSet::new()));
     let agreement_allocation = Arc::new(Mutex::new(HashMap::new()));
+    // TODO
+    let accounts: Vec<Account> = vec![
+        Account {
+            platform: "ngnt".into(),
+            address: "0xdeadbeef".into(),
+        },
+        Account {
+            platform: "zk-ngnt".into(),
+            address: "0xdeadbeef".into(),
+        },
+    ];
+
     let my_demand = market::build_demand(
         &settings.node_name,
         &settings.runtime,
         &settings.task_package,
         chrono::Duration::from_std(*settings.task_expiration)?,
         &settings.subnet,
+        accounts,
+        &settings.payment_platform,
     );
 
     log::debug!(
