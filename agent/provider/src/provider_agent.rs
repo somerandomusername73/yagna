@@ -31,6 +31,11 @@ impl ProviderAgent {
     pub async fn new(args: RunConfig, config: ProviderConfig) -> anyhow::Result<ProviderAgent> {
         let data_dir = config.data_dir.get_or_create()?.as_path().to_path_buf();
         let api = ProviderApi::try_from(&args.api)?;
+
+        log::info!("Loading payment accounts...");
+        let accounts: Vec<Account> = api.payment.get_accounts().await?;
+        log::info!("Payment accounts: {:#?}", accounts);
+
         let registry = config.registry()?;
         registry.validate()?;
 
@@ -44,17 +49,6 @@ impl ProviderAgent {
         let runner = TaskRunner::new(api.activity, args.runner_config, registry, data_dir)?.start();
         let task_manager = TaskManager::new(market.clone(), runner.clone(), payments)?.start();
         let node_info = ProviderAgent::create_node_info(&args.node).await;
-
-        let accounts = vec![
-            Account {
-                platform: "ngnt".into(),
-                address: "0xbeefdead".into(),
-            },
-            Account {
-                platform: "zk-ngnt".into(),
-                address: "0xbeefdead".into(),
-            },
-        ];
 
         Ok(ProviderAgent {
             market,

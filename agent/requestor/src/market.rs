@@ -62,7 +62,7 @@ pub(crate) fn build_demand(
     };
 
     if let Some(payment_platform) = payment_platform {
-        let payment_platform = payment_platform.to_string().to_lowercase();
+        let payment_platform = payment_platform.to_string().to_uppercase();
         log::info!("Using preferred payment platform: {}", payment_platform);
         let cnt: String = format!("golem.com.payment.platform.{}.address", payment_platform);
         cnts = cnts.and(constraints![cnt == "*".to_string(),]);
@@ -175,7 +175,13 @@ async fn negotiate_offer(
     let new_agreement_id = api.market.create_agreement(&new_agreement).await?;
 
     log::info!("\n\n allocating funds for agreement: {}", new_agreement_id);
-    match allocate_funds(&api.payment, allocation_size, offer.chosen_payment_platform()?).await {
+    match allocate_funds(
+        &api.payment,
+        allocation_size,
+        offer.chosen_payment_platform()?,
+    )
+    .await
+    {
         Ok(alloc) => {
             agreement_allocation
                 .lock()

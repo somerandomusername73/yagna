@@ -176,17 +176,10 @@ async fn main() -> anyhow::Result<()> {
 
     let activities = Arc::new(Mutex::new(HashSet::new()));
     let agreement_allocation = Arc::new(Mutex::new(HashMap::new()));
-    // TODO
-    let accounts: Vec<Account> = vec![
-        Account {
-            platform: "ngnt".into(),
-            address: "0xdeadbeef".into(),
-        },
-        Account {
-            platform: "zk-ngnt".into(),
-            address: "0xdeadbeef".into(),
-        },
-    ];
+
+    log::info!("Loading payment accounts...");
+    let accounts: Vec<Account> = api.payment.get_accounts().await?;
+    log::info!("Payment accounts: {:#?}", accounts);
 
     let my_demand = market::build_demand(
         &settings.node_name,
