@@ -56,8 +56,9 @@ struct AppSettings {
     #[structopt(long)]
     one_agreement: bool,
     /// Payment platform
-    #[structopt(long, env = "PAYMENT_PLATFORM")]
-    pub payment_platform: Option<String>,
+    /// Comma separated list of platforms
+    #[structopt(long, env = "PAYMENT_PLATFORMS")]
+    pub payment_platforms: Option<String>,
 }
 
 /// if needed unsubscribes from the market and releases allocation
@@ -188,7 +189,7 @@ async fn main() -> anyhow::Result<()> {
         chrono::Duration::from_std(*settings.task_expiration)?,
         &settings.subnet,
         accounts,
-        &settings.payment_platform,
+        &settings.payment_platforms,
     );
 
     log::debug!(

@@ -22,7 +22,7 @@ pub(crate) fn build_demand(
     expires: chrono::Duration,
     subnet: &Option<String>,
     accounts: Vec<Account>,
-    payment_platform: &Option<String>,
+    payment_platforms: &Option<String>,
 ) -> Demand {
     let expiration = Utc::now() + expires;
 
@@ -61,11 +61,16 @@ pub(crate) fn build_demand(
         cnts = cnts.and(constraints!["golem.node.debug.subnet" == subnet.clone(),]);
     };
 
-    if let Some(payment_platform) = payment_platform {
-        let payment_platform = payment_platform.to_string().to_uppercase();
-        log::info!("Using preferred payment platform: {}", payment_platform);
-        let cnt: String = format!("golem.com.payment.platform.{}.address", payment_platform);
-        cnts = cnts.and(constraints![cnt == "*".to_string(),]);
+    if let Some(payment_platforms) = payment_platforms {
+        let payment_platforms = payment_platforms.to_string().to_uppercase();
+        let payment_platforms: Vec<&str> = payment_platforms.split(',').collect();
+        let mut payment_platform_constraints = constraints![(),];
+        for platform in payment_platforms {
+            payment_platform_constraints =
+                payment_platform_constraints.or(prepare_payment_platform_constraint(platform))
+        }
+
+        cnts = cnts.and(payment_platform_constraints);
     }
 
     Demand {
@@ -75,6 +80,11 @@ pub(crate) fn build_demand(
         demand_id: Default::default(),
         requestor_id: Default::default(),
     }
+}
+
+fn prepare_payment_platform_constraint(platform: &str) -> Constraints {
+    let cnt: String = format!("golem.com.payment.platform.{}.address", platform);
+    constraints![cnt == "*".to_string(),]
 }
 
 enum ProcessOfferResult {
