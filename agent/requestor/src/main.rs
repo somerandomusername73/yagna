@@ -16,7 +16,7 @@ mod market;
 mod payment;
 
 const DEFAULT_NODE_NAME: &str = "test1";
-const DEFAULT_TASK_PACKAGE: &str = "hash://sha3:38D951E2BD2408D95D8D5E5068A69C60C8238FA45DB8BC841DC0BD50:http://3.249.139.167:8000/rust-wasi-tutorial.zip";
+const DEFAULT_TASK_PACKAGE: &str = "hash://sha3:d5e31b2eed628572a5898bf8c34447644bfc4b5130cfc1e4f10aeaa1:http://3.249.139.167:8000/rust-wasi-tutorial.zip";
 
 #[derive(StructOpt)]
 #[structopt(rename_all = "kebab-case")]
@@ -55,10 +55,6 @@ struct AppSettings {
     /// Exit after processing one agreement.
     #[structopt(long)]
     one_agreement: bool,
-    /// Payment platform
-    /// Comma separated list of platforms
-    #[structopt(long, env = "PAYMENT_PLATFORMS")]
-    pub payment_platforms: Option<String>,
 }
 
 /// if needed unsubscribes from the market and releases allocation
@@ -189,7 +185,6 @@ async fn main() -> anyhow::Result<()> {
         chrono::Duration::from_std(*settings.task_expiration)?,
         &settings.subnet,
         accounts,
-        &settings.payment_platforms,
     );
 
     log::debug!(

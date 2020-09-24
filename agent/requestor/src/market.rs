@@ -14,6 +14,12 @@ use ya_client::model::market::{
 use ya_client::model::payment::Account;
 
 use crate::payment::allocate_funds;
+use serde_json::Value;
+use std::collections::HashSet;
+use std::iter::FromIterator;
+use ya_agreement_utils::agreement::{expand, TypedPointer};
+
+const DEFAULT_PAYMENT_PLATFORM: &str = "NGNT";
 
 pub(crate) fn build_demand(
     node_name: &str,
@@ -22,12 +28,11 @@ pub(crate) fn build_demand(
     expires: chrono::Duration,
     subnet: &Option<String>,
     accounts: Vec<Account>,
-    payment_platforms: &Option<String>,
 ) -> Demand {
     let expiration = Utc::now() + expires;
 
     let mut com = serde_json::json!({});
-    for account in accounts {
+    for account in accounts.iter() {
         com.as_object_mut().unwrap().insert(
             format!("payment.platform.{}", account.platform),
             serde_json::json!({
@@ -61,17 +66,13 @@ pub(crate) fn build_demand(
         cnts = cnts.and(constraints!["golem.node.debug.subnet" == subnet.clone(),]);
     };
 
-    if let Some(payment_platforms) = payment_platforms {
-        let payment_platforms = payment_platforms.to_string().to_uppercase();
-        let payment_platforms: Vec<&str> = payment_platforms.split(',').collect();
-        let mut payment_platform_constraints = constraints![(),];
-        for platform in payment_platforms {
-            payment_platform_constraints =
-                payment_platform_constraints.or(prepare_payment_platform_constraint(platform))
-        }
+    let payment_platform_constraints = accounts
+        .iter()
+        .fold(constraints![(),], |constraint, account| {
+            constraint.or(platform_constraint(&account.platform))
+        });
 
-        cnts = cnts.and(payment_platform_constraints);
-    }
+    cnts = cnts.and(payment_platform_constraints);
 
     Demand {
         properties,
@@ -82,7 +83,7 @@ pub(crate) fn build_demand(
     }
 }
 
-fn prepare_payment_platform_constraint(platform: &str) -> Constraints {
+fn platform_constraint(platform: &str) -> Constraints {
     let cnt: String = format!("golem.com.payment.platform.{}.address", platform);
     constraints![cnt == "*".to_string(),]
 }
@@ -158,20 +159,51 @@ pub(crate) async fn spawn_negotiations(
     }
 }
 
+fn extract_payment_platforms(properties: &Value) -> HashSet<String> {
+    match properties
+        .pointer("/golem/com/payment/platform")
+        .as_typed(Value::as_object)
+    {
+        Err(_) => HashSet::new(),
+        Ok(value) => HashSet::from_iter(value.keys().cloned()),
+    }
+}
+
+fn choose_payment_platform(
+    offer_platforms: HashSet<String>,
+    demand_platforms: HashSet<String>,
+) -> String {
+    match offer_platforms.intersection(&demand_platforms).next() {
+        Some(platform) => platform.clone(),
+        None => DEFAULT_PAYMENT_PLATFORM.to_owned(),
+    }
+}
+
 async fn negotiate_offer(
     api: RequestorApi,
-    offer: Proposal,
+    proposal: Proposal,
     subscription_id: &str,
     my_demand: Demand,
     allocation_size: i64,
     agreement_allocation: Arc<Mutex<HashMap<String, String>>>,
 ) -> anyhow::Result<ProcessOfferResult> {
-    let proposal_id = offer.proposal_id()?.clone();
-    if offer.state.unwrap_or(State::Initial) == State::Initial {
-        if offer.prev_proposal_id.is_some() {
-            anyhow::bail!("Proposal in Initial state but with prev id: {:#?}", offer)
+    let proposal_id = proposal.proposal_id()?.clone();
+    if proposal.state.unwrap_or(State::Initial) == State::Initial {
+        if proposal.prev_proposal_id.is_some() {
+            anyhow::bail!(
+                "Proposal in Initial state but with prev id: {:#?}",
+                proposal
+            )
         }
-        let bespoke_proposal = offer.counter_demand(my_demand)?;
+        let proposal_platforms = extract_payment_platforms(&proposal.properties);
+        let my_demand_platforms = extract_payment_platforms(&my_demand.properties);
+        let chosen_payment_platform =
+            choose_payment_platform(proposal_platforms, my_demand_platforms);
+        let mut bespoke_proposal = proposal.counter_demand(my_demand)?;
+        bespoke_proposal.properties.as_object_mut().unwrap().insert(
+            "golem.com.payment.chosen-platform".to_owned(),
+            chosen_payment_platform.into(),
+        );
         let new_proposal_id = api
             .market
             .counter_proposal(&bespoke_proposal, subscription_id)
@@ -184,14 +216,13 @@ async fn negotiate_offer(
     log::info!("\n\n creating new AGREEMENT");
     let new_agreement_id = api.market.create_agreement(&new_agreement).await?;
 
+    let payment_platform = expand(proposal.properties)
+        .pointer("/golem/com/payment/chosen-platform")
+        .as_typed(Value::as_str)
+        .unwrap_or(DEFAULT_PAYMENT_PLATFORM)
+        .to_owned();
     log::info!("\n\n allocating funds for agreement: {}", new_agreement_id);
-    match allocate_funds(
-        &api.payment,
-        allocation_size,
-        offer.chosen_payment_platform()?,
-    )
-    .await
-    {
+    match allocate_funds(&api.payment, allocation_size, payment_platform).await {
         Ok(alloc) => {
             agreement_allocation
                 .lock()

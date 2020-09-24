@@ -25,6 +25,7 @@ async fn main() -> anyhow::Result<()> {
         })
         .await?;
     log::info!("Invoice issued.");
+    log::debug!("Invoice: {:?}", &invoice);
 
     log::info!("Sending invoice...");
     provider.send_invoice(&invoice.invoice_id).await?;
